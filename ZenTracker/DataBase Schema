@@ -1,0 +1,62 @@
+-- Create Users Table (Secure Vault Architecture)
+CREATE TABLE users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(255) NOT NULL,          -- AES Encrypted String (Base64)
+    email VARCHAR(255) NOT NULL UNIQUE,      -- AES Encrypted String (Base64)
+    password_hash VARCHAR(64) NOT NULL,      -- SHA-256 64-character hex hash
+    user_role ENUM('USER', 'ADMIN') DEFAULT 'USER',
+    global_savings_bracket VARCHAR(50) DEFAULT 'unassigned', -- For peer matching
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_email (email)
+);
+
+-- Create Transactions Table (High Performance Ledger)
+CREATE TABLE transactions (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    amount DECIMAL(10, 2) NOT NULL,          -- Strict financial precision
+    category VARCHAR(50) NOT NULL,           -- Food, Travel, Subscriptions, Bills, Misc
+    merchant VARCHAR(100) NOT NULL,          -- Extracted from Notification / Manual entry
+    note TEXT,                               -- AES Encrypted descriptive text
+    transaction_date DATE NOT NULL,
+    is_automated_entry BOOLEAN DEFAULT FALSE, -- True if parsed from Notification Listener
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_user_date (user_id, transaction_date),
+    INDEX idx_category (category)
+);
+
+-- Create Budget Envelopes Table (Proactive Caps)
+CREATE TABLE budgets (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    category VARCHAR(50) NOT NULL,
+    monthly_limit DECIMAL(10, 2) NOT NULL,
+    target_month_year VARCHAR(7) NOT NULL,   -- Format: YYYY-MM
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_user_category_month (user_id, category, target_month_year),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- Create Gamification Streaks Table (Behavioral Optimization)
+CREATE TABLE streaks (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    category VARCHAR(50) NOT NULL,
+    current_streak INT DEFAULT 0,
+    longest_streak INT DEFAULT 0,
+    last_tracked_date DATE,
+    current_rank VARCHAR(50) DEFAULT 'Sprout Saver',
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE KEY uq_user_streak_category (user_id, category)
+);
+
+-- Create Auditing & System Logs Table (Security Monitoring)
+CREATE TABLE system_logs (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    event_type VARCHAR(50) NOT NULL,         -- LOGIN_FAIL, RESET_REQ, SQL_WARN, ANOMALY
+    description TEXT NOT NULL,
+    ip_address VARCHAR(45),
+    triggered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_event_time (event_type, triggered_at)
+);
